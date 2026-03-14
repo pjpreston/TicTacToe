@@ -1,3 +1,11 @@
+# testing notes
+# start server with `python server.py`
+# use curl to set cell values, e.g.:
+# curl -X POST -H "Content-Type: application/json" -d '{"row":0,"col":0,"value":"X","player":"Player 1"}' http://localhost:5000/cell        
+# better - use SIMPLE REST CLIENT
+# POST this BODY {"row":0,"col":1,"value":"X", "player":"Player 1"}
+# to URL http://localhost:5000/cell
+
 from flask import Flask, jsonify, request, Response
 from game import Game
 from player import Player
