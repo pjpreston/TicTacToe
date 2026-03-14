@@ -3,28 +3,39 @@ from game import Game
 from player import Player
 
 app = Flask(__name__)
-game = Game(Player("Player 1"), Player("Player 2"))
+game = Game(Player("Player 1", 1), Player("Player 2", 2))
 
 
 @app.post('/cell')
 def set_cell():
-    """Set a cell value. Body: {"row": 0, "col": 0, "value": "X"}"""
+    """Set a cell value. Body: {"row": 0, "col": 0, "value": "X", "player": "Player 1"}"""
     data = request.get_json(force=True)
     try:
         row = int(data['row'])
         col = int(data['col'])
         value = str(data['value'])
+        player_name = str(data['player'])
     except (KeyError, TypeError, ValueError):
-        return jsonify(error="Request must include integer 'row', 'col' and string 'value'"), 400
+        return jsonify(error="Request must include integer 'row', 'col', string 'value', and string 'player'"), 400
 
     try:
-        game.grid.set(row, col, value)
+        player = game.get_player_by_name(player_name)
+    except ValueError:
+        return jsonify(error=f"No player named '{player_name}'"), 400
+
+    if player is not game.current_player:
+        return jsonify(error=f"Invalid move. It is currently {game.current_player.name}'s turn"), 400
+
+    try:
+        game.make_move(player, row, col, value)
     except (IndexError, ValueError) as e:
         return jsonify(error=str(e)), 400
 
     winner = game.rules.winner(game.grid)
     draw = game.rules.is_draw(game.grid)
-    return jsonify(row=row, col=col, value=value, winner=winner, draw=draw), 200
+    next_player = game.current_player.name
+    print(f"Next turn: {next_player}")
+    return jsonify(row=row, col=col, value=value, winner=winner, draw=draw, next_player=next_player), 200
 
 
 @app.get('/')
