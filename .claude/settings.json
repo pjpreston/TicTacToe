@@ -1,0 +1,10 @@
+{
+  "model": "claude-opus-4-6",
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest test_rules.py test_grid.py -q)",
+      "Bash(gh auth:*)",
+      "Bash(gh repo:*)"
+    ]
+  }
+}

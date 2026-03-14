@@ -1,10 +1,9 @@
 from flask import Flask, jsonify, request, Response
-from grid import Grid
-from rules import Rules
+from game import Game
+from player import Player
 
 app = Flask(__name__)
-grid = Grid()
-rules = Rules()
+game = Game(Player("Player 1"), Player("Player 2"))
 
 
 @app.post('/cell')
@@ -19,12 +18,12 @@ def set_cell():
         return jsonify(error="Request must include integer 'row', 'col' and string 'value'"), 400
 
     try:
-        grid.set(row, col, value)
+        game.grid.set(row, col, value)
     except (IndexError, ValueError) as e:
         return jsonify(error=str(e)), 400
 
-    winner = rules.winner(grid)
-    draw = rules.is_draw(grid)
+    winner = game.rules.winner(game.grid)
+    draw = game.rules.is_draw(game.grid)
     return jsonify(row=row, col=col, value=value, winner=winner, draw=draw), 200
 
 
@@ -35,7 +34,7 @@ def render_grid():
     for row in range(3):
         cells_html = ''
         for col in range(3):
-            cell = grid.get(row, col) or ''
+            cell = game.grid.get(row, col) or ''
             cells_html += f'<td>{cell}</td>'
         rows_html += f'<tr>{cells_html}</tr>'
 
