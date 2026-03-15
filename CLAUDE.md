@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A TicTacToe game built with Python and Flask. The server exposes a web UI (`GET /`) and an API endpoint (`POST /cell`) for making moves.
 
+
+## Development of code
+When asked to implement a JIRA always create a new git branch with the name of the JIRA ticket.
+
 ## Commands
 
 - **Run all tests:** `python -m pytest -q`

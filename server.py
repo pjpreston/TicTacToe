@@ -49,13 +49,34 @@ def set_cell():
 @app.get('/')
 def render_grid():
     """Render the current grid state as an HTML page."""
+    current_name = game.current_player.name
+    current_marker = 'X' if game.current_player is game.player1 else 'O'
+    winner = game.rules.winner(game.grid)
+    draw = game.rules.is_draw(game.grid)
+    game_over = winner is not None or draw
+
+    if winner:
+        winner_name = game.player1.name if winner == 'X' else game.player2.name
+        status_message = f'{winner_name} wins!'
+    elif draw:
+        status_message = "It's a draw!"
+    else:
+        status_message = f'Current turn: {current_name} ({current_marker})'
+
+    header_html = '<tr><th></th>'
+    for col in range(3):
+        header_html += f'<th>{col}</th>'
+    header_html += '</tr>'
+
     rows_html = ''
     for row in range(3):
-        cells_html = ''
+        cells_html = f'<th>{row}</th>'
         for col in range(3):
             cell = game.grid.get(row, col) or ''
             cells_html += f'<td>{cell}</td>'
         rows_html += f'<tr>{cells_html}</tr>'
+
+    form_display = 'none' if game_over else 'flex'
 
     html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -63,7 +84,8 @@ def render_grid():
   <meta charset="UTF-8">
   <title>Tic-Tac-Toe</title>
   <style>
-    body {{ font-family: sans-serif; display: flex; justify-content: center; padding-top: 60px; }}
+    body {{ font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 40px; }}
+    h2 {{ margin-bottom: 10px; }}
     table {{ border-collapse: collapse; }}
     td {{
       width: 80px; height: 80px;
@@ -71,10 +93,63 @@ def render_grid():
       text-align: center; vertical-align: middle;
       font-size: 2.5rem; font-weight: bold;
     }}
+    th {{
+      width: 30px; height: 30px;
+      text-align: center; vertical-align: middle;
+      font-size: 1rem; font-weight: normal;
+      color: #666;
+    }}
+    #move-form {{
+      display: {form_display}; gap: 10px; align-items: center; margin-top: 20px;
+    }}
+    #move-form input {{
+      width: 50px; padding: 5px; font-size: 1rem; text-align: center;
+    }}
+    #move-form button {{
+      padding: 6px 16px; font-size: 1rem; cursor: pointer;
+    }}
+    #error {{ color: red; margin-top: 10px; }}
   </style>
 </head>
 <body>
-  <table>{rows_html}</table>
+  <h2>{status_message}</h2>
+  <table>{header_html}{rows_html}</table>
+  <div id="move-form">
+    <label>Row: <input type="number" id="row" min="0" max="2"></label>
+    <label>Col: <input type="number" id="col" min="0" max="2"></label>
+    <button id="move-btn">Move</button>
+  </div>
+  <p id="error"></p>
+  <script>
+    const btn = document.getElementById('move-btn');
+    if (btn) {{
+      btn.addEventListener('click', async () => {{
+        const row = parseInt(document.getElementById('row').value);
+        const col = parseInt(document.getElementById('col').value);
+        const errorEl = document.getElementById('error');
+        errorEl.textContent = '';
+        if (isNaN(row) || isNaN(col)) {{
+          errorEl.textContent = 'Please enter both row and col values.';
+          return;
+        }}
+        try {{
+          const resp = await fetch('/cell', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{row, col, value: '{current_marker}', player: '{current_name}'}})
+          }});
+          const data = await resp.json();
+          if (!resp.ok) {{
+            errorEl.textContent = data.error || 'Unknown error';
+          }} else {{
+            window.location.reload();
+          }}
+        }} catch (err) {{
+          errorEl.textContent = 'Network error: ' + err.message;
+        }}
+      }});
+    }}
+  </script>
 </body>
 </html>'''
     return Response(html, mimetype='text/html')
