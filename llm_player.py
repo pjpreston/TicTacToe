@@ -1,9 +1,13 @@
 import json
 import anthropic
 from grid import Grid
+from pydantic import BaseModel
+DEFAULT_MODEL = 'claude-sonnet-4-6'
+#DEFAULT_MODEL = 'claude-opus-4-6'
 
-#DEFAULT_MODEL = 'claude-sonnet-4-6'
-DEFAULT_MODEL = 'claude-opus-4-6'
+class Coordinate(BaseModel):
+    row: int
+    col: int
 
 def choose_move(grid: Grid, marker: str, model: str = DEFAULT_MODEL) -> tuple[int, int]:
     """Choose a move by asking an LLM to pick the best cell.
@@ -31,16 +35,19 @@ The board (rows 0-2, cols 0-2, '.' = empty):
 
 Available cells: {empty_cells}
 
-Pick your next move. Respond with ONLY a JSON object in this format: {{"row": <int>, "col": <int>}}"""
+Respond with ONLY a JSON object in this format: {{"row": <int>, "col": <int>}}
+Pick your next move."""
 
     client = anthropic.Anthropic()
     message = client.messages.create(
         model=model,
-        max_tokens=50,
-        messages=[{"role": "user", "content": prompt}],
+        max_tokens=50,        
+        messages=[
+            {"role": "user", "content": prompt},            
+        ],
     )
 
-    response_text = message.content[0].text.strip()
+    response_text = "{" + message.content[0].text.strip()
 
     print(f"LLM response = {response_text}")
 
