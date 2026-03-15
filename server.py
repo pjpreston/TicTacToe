@@ -9,27 +9,30 @@
 from flask import Flask, jsonify, request, Response
 from game import Game
 from player import Player
+from ai_player import choose_move
 
 app = Flask(__name__)
 game = None
 
 
+AI_NAME = 'Hal'
+
+
 @app.post('/start')
 def start_game():
-    """Start a new game. Body: {"player1": "Alice", "player2": "Bob"}"""
+    """Start a new game. Body: {"player1": "Alice"}"""
     global game
     data = request.get_json(force=True)
     try:
         name1 = str(data['player1']).strip()
-        name2 = str(data['player2']).strip()
     except (KeyError, TypeError):
-        return jsonify(error="Request must include 'player1' and 'player2' names"), 400
-    if not name1 or not name2:
-        return jsonify(error="Player names cannot be empty"), 400
-    if name1 == name2:
-        return jsonify(error="Player names must be different"), 400
-    game = Game(Player(name1, 1), Player(name2, 2))
-    return jsonify(player1=name1, player2=name2), 200
+        return jsonify(error="Request must include 'player1' name"), 400
+    if not name1:
+        return jsonify(error="Player name cannot be empty"), 400
+    if name1 == AI_NAME:
+        return jsonify(error=f"Player name cannot be '{AI_NAME}'"), 400
+    game = Game(Player(name1, 1), Player(AI_NAME, 2))
+    return jsonify(player1=name1, player2=AI_NAME), 200
 
 
 @app.post('/cell')
@@ -61,6 +64,16 @@ def set_cell():
 
     winner = game.rules.winner(game.grid)
     draw = game.rules.is_draw(game.grid)
+
+    # Auto-play Hal's move if the game isn't over
+    if not winner and not draw and game.current_player.name == AI_NAME:
+        ai_marker = 'O'
+        ai_move = choose_move(game.grid, ai_marker)
+        if ai_move:
+            game.make_move(game.current_player, ai_move[0], ai_move[1], ai_marker)
+            winner = game.rules.winner(game.grid)
+            draw = game.rules.is_draw(game.grid)
+
     next_player = game.current_player.name
     print(f"Next turn: {next_player}")
     return jsonify(row=row, col=col, value=value, winner=winner, draw=draw, next_player=next_player), 200
@@ -93,27 +106,26 @@ def _render_setup():
 </head>
 <body>
   <h1>Tic-Tac-Toe</h1>
+  <p>You will be playing against <strong>Hal</strong></p>
   <div id="setup-form">
-    <label>Player 1 (X): <input type="text" id="player1"></label>
-    <label>Player 2 (O): <input type="text" id="player2"></label>
+    <label>Your name (X): <input type="text" id="player1"></label>
     <button id="start-btn">Start Game</button>
   </div>
   <p id="error"></p>
   <script>
     document.getElementById('start-btn').addEventListener('click', async () => {
       const p1 = document.getElementById('player1').value.trim();
-      const p2 = document.getElementById('player2').value.trim();
       const errorEl = document.getElementById('error');
       errorEl.textContent = '';
-      if (!p1 || !p2) {
-        errorEl.textContent = 'Please enter both player names.';
+      if (!p1) {
+        errorEl.textContent = 'Please enter your name.';
         return;
       }
       try {
         const resp = await fetch('/start', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({player1: p1, player2: p2})
+          body: JSON.stringify({player1: p1})
         });
         const data = await resp.json();
         if (!resp.ok) {
