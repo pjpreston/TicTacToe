@@ -46,6 +46,12 @@ def set_cell():
     return jsonify(row=row, col=col, value=value, winner=winner, draw=draw, next_player=next_player), 200
 
 
+@app.get('/move-count')
+def move_count():
+    """Return the current move count for polling."""
+    return jsonify(move_count=game.move_count)
+
+
 @app.get('/')
 def render_grid():
     """Render the current grid state as an HTML page."""
@@ -149,6 +155,16 @@ def render_grid():
         }}
       }});
     }}
+    let knownMoveCount = {game.move_count};
+    setInterval(async () => {{
+      try {{
+        const resp = await fetch('/move-count');
+        const data = await resp.json();
+        if (data.move_count !== knownMoveCount) {{
+          window.location.reload();
+        }}
+      }} catch (e) {{}}
+    }}, 2000);
   </script>
 </body>
 </html>'''

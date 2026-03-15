@@ -12,6 +12,7 @@ class Game:
         self._grid = Grid()
         self._rules = Rules()
         self._current_player = player1
+        self._move_count = 0
 
     @property
     def player1(self) -> Player:
@@ -33,6 +34,10 @@ class Game:
     def current_player(self) -> Player:
         return self._current_player
 
+    @property
+    def move_count(self) -> int:
+        return self._move_count
+
     def get_player_by_name(self, name: str) -> Player:
         """Return the player with the given name, or raise ValueError."""
         if name == self._player1.name:
@@ -46,4 +51,5 @@ class Game:
         if player is not self._current_player:
             raise ValueError(f"It is not {player.name}'s turn")
         self._grid.set(row, col, value)
+        self._move_count += 1
         self._current_player = self._player2 if player is self._player1 else self._player1
