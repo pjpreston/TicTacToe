@@ -11,12 +11,32 @@ from game import Game
 from player import Player
 
 app = Flask(__name__)
-game = Game(Player("Player 1", 1), Player("Player 2", 2))
+game = None
+
+
+@app.post('/start')
+def start_game():
+    """Start a new game. Body: {"player1": "Alice", "player2": "Bob"}"""
+    global game
+    data = request.get_json(force=True)
+    try:
+        name1 = str(data['player1']).strip()
+        name2 = str(data['player2']).strip()
+    except (KeyError, TypeError):
+        return jsonify(error="Request must include 'player1' and 'player2' names"), 400
+    if not name1 or not name2:
+        return jsonify(error="Player names cannot be empty"), 400
+    if name1 == name2:
+        return jsonify(error="Player names must be different"), 400
+    game = Game(Player(name1, 1), Player(name2, 2))
+    return jsonify(player1=name1, player2=name2), 200
 
 
 @app.post('/cell')
 def set_cell():
     """Set a cell value. Body: {"row": 0, "col": 0, "value": "X", "player": "Player 1"}"""
+    if game is None:
+        return jsonify(error="Game has not been started yet"), 400
     data = request.get_json(force=True)
     try:
         row = int(data['row'])
@@ -49,12 +69,74 @@ def set_cell():
 @app.get('/move-count')
 def move_count():
     """Return the current move count for polling."""
+    if game is None:
+        return jsonify(move_count=-1)
     return jsonify(move_count=game.move_count)
+
+
+def _render_setup():
+    """Render the player name entry form."""
+    html = '''<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tic-Tac-Toe - Setup</title>
+  <style>
+    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 60px; }
+    h1 { margin-bottom: 20px; }
+    #setup-form { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+    #setup-form label { font-size: 1rem; }
+    #setup-form input { padding: 5px; font-size: 1rem; width: 200px; }
+    #setup-form button { padding: 8px 20px; font-size: 1rem; cursor: pointer; margin-top: 10px; }
+    #error { color: red; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Tic-Tac-Toe</h1>
+  <div id="setup-form">
+    <label>Player 1 (X): <input type="text" id="player1"></label>
+    <label>Player 2 (O): <input type="text" id="player2"></label>
+    <button id="start-btn">Start Game</button>
+  </div>
+  <p id="error"></p>
+  <script>
+    document.getElementById('start-btn').addEventListener('click', async () => {
+      const p1 = document.getElementById('player1').value.trim();
+      const p2 = document.getElementById('player2').value.trim();
+      const errorEl = document.getElementById('error');
+      errorEl.textContent = '';
+      if (!p1 || !p2) {
+        errorEl.textContent = 'Please enter both player names.';
+        return;
+      }
+      try {
+        const resp = await fetch('/start', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({player1: p1, player2: p2})
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          errorEl.textContent = data.error || 'Unknown error';
+        } else {
+          window.location.reload();
+        }
+      } catch (err) {
+        errorEl.textContent = 'Network error: ' + err.message;
+      }
+    });
+  </script>
+</body>
+</html>'''
+    return Response(html, mimetype='text/html')
 
 
 @app.get('/')
 def render_grid():
     """Render the current grid state as an HTML page."""
+    if game is None:
+        return _render_setup()
+
     current_name = game.current_player.name
     current_marker = 'X' if game.current_player is game.player1 else 'O'
     winner = game.rules.winner(game.grid)
