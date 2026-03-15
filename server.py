@@ -6,17 +6,22 @@
 # POST this BODY {"row":0,"col":1,"value":"X", "player":"Player 1"}
 # to URL http://localhost:5000/cell
 
+import os
+
 from flask import Flask, jsonify, request, Response
 from game import Game
 from player import Player
-from ai_player import choose_move
+import ai_player
+import llm_player
 
 app = Flask(__name__)
 game = None
 
-
-AI_NAME = 'Hal'
-
+# To use minimax instead: AI_MODE=minimax python server.py
+#To use a different model: AI_MODEL=claude-haiku-4-5-20251001 python server.py
+AI_MODE = os.environ.get('AI_MODE', 'llm')  # 'llm' or 'minimax'
+AI_MODEL = os.environ.get('AI_MODEL', llm_player.DEFAULT_MODEL)
+AI_NAME = AI_MODEL if AI_MODE == 'llm' else 'Hal'
 
 @app.post('/start')
 def start_game():
@@ -65,10 +70,13 @@ def set_cell():
     winner = game.rules.winner(game.grid)
     draw = game.rules.is_draw(game.grid)
 
-    # Auto-play Hal's move if the game isn't over
+    # Auto-play AI's move if the game isn't over
     if not winner and not draw and game.current_player.name == AI_NAME:
         ai_marker = 'O'
-        ai_move = choose_move(game.grid, ai_marker)
+        if AI_MODE == 'llm':
+            ai_move = llm_player.choose_move(game.grid, ai_marker, AI_MODEL)
+        else:
+            ai_move = ai_player.choose_move(game.grid, ai_marker)
         if ai_move:
             game.make_move(game.current_player, ai_move[0], ai_move[1], ai_marker)
             winner = game.rules.winner(game.grid)
@@ -89,54 +97,54 @@ def move_count():
 
 def _render_setup():
     """Render the player name entry form."""
-    html = '''<!DOCTYPE html>
+    html = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Tic-Tac-Toe - Setup</title>
   <style>
-    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 60px; }
-    h1 { margin-bottom: 20px; }
-    #setup-form { display: flex; flex-direction: column; gap: 10px; align-items: center; }
-    #setup-form label { font-size: 1rem; }
-    #setup-form input { padding: 5px; font-size: 1rem; width: 200px; }
-    #setup-form button { padding: 8px 20px; font-size: 1rem; cursor: pointer; margin-top: 10px; }
-    #error { color: red; margin-top: 10px; }
+    body {{ font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 60px; }}
+    h1 {{ margin-bottom: 20px; }}
+    #setup-form {{ display: flex; flex-direction: column; gap: 10px; align-items: center; }}
+    #setup-form label {{ font-size: 1rem; }}
+    #setup-form input {{ padding: 5px; font-size: 1rem; width: 200px; }}
+    #setup-form button {{ padding: 8px 20px; font-size: 1rem; cursor: pointer; margin-top: 10px; }}
+    #error {{ color: red; margin-top: 10px; }}
   </style>
 </head>
 <body>
   <h1>Tic-Tac-Toe</h1>
-  <p>You will be playing against <strong>Hal</strong></p>
+  <p>You will be playing against <strong>{AI_NAME}</strong></p>
   <div id="setup-form">
     <label>Your name (X): <input type="text" id="player1"></label>
     <button id="start-btn">Start Game</button>
   </div>
   <p id="error"></p>
   <script>
-    document.getElementById('start-btn').addEventListener('click', async () => {
+    document.getElementById('start-btn').addEventListener('click', async () => {{
       const p1 = document.getElementById('player1').value.trim();
       const errorEl = document.getElementById('error');
       errorEl.textContent = '';
-      if (!p1) {
+      if (!p1) {{
         errorEl.textContent = 'Please enter your name.';
         return;
-      }
-      try {
-        const resp = await fetch('/start', {
+      }}
+      try {{
+        const resp = await fetch('/start', {{
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({player1: p1})
-        });
+          headers: {{'Content-Type': 'application/json'}},
+          body: JSON.stringify({{player1: p1}})
+        }});
         const data = await resp.json();
-        if (!resp.ok) {
+        if (!resp.ok) {{
           errorEl.textContent = data.error || 'Unknown error';
-        } else {
+        }} else {{
           window.location.reload();
-        }
-      } catch (err) {
+        }}
+      }} catch (err) {{
         errorEl.textContent = 'Network error: ' + err.message;
-      }
-    });
+      }}
+    }});
   </script>
 </body>
 </html>'''
