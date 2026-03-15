@@ -1,13 +1,21 @@
-import json
 import anthropic
 from grid import Grid
 from pydantic import BaseModel
+
 DEFAULT_MODEL = 'claude-sonnet-4-6'
-#DEFAULT_MODEL = 'claude-opus-4-6'
+
 
 class Coordinate(BaseModel):
     row: int
     col: int
+
+
+MAKE_MOVE_TOOL = {
+    "name": "make_move",
+    "description": "Place your marker on the board at the given coordinate.",
+    "input_schema": Coordinate.model_json_schema(),
+}
+
 
 def choose_move(grid: Grid, marker: str, model: str = DEFAULT_MODEL) -> tuple[int, int]:
     """Choose a move by asking an LLM to pick the best cell.
@@ -35,45 +43,24 @@ The board (rows 0-2, cols 0-2, '.' = empty):
 
 Available cells: {empty_cells}
 
-Respond with ONLY a JSON object in this format: {{"row": <int>, "col": <int>}}
-Pick your next move."""
+Use the make_move tool to place your marker. Pick the best move."""
 
     client = anthropic.Anthropic()
     message = client.messages.create(
         model=model,
-        max_tokens=50,        
-        messages=[
-            {"role": "user", "content": prompt},            
-        ],
+        max_tokens=200,
+        tools=[MAKE_MOVE_TOOL],
+        tool_choice={"type": "tool", "name": "make_move"},
+        messages=[{"role": "user", "content": prompt}],
     )
 
-    response_text = "{" + message.content[0].text.strip()
+    for block in message.content:
+        if block.type == "tool_use" and block.name == "make_move":
+            coord = Coordinate.model_validate(block.input)
+            print(f"LLM move: ({coord.row}, {coord.col})")
+            if (coord.row, coord.col) in empty_cells:
+                return (coord.row, coord.col)
 
-    print(f"LLM response = {response_text}")
-
-    # Parse the JSON response, retrying with fallback if needed
-    try:
-        move = json.loads(response_text)
-        row, col = int(move['row']), int(move['col'])
-        if (row, col) in empty_cells:
-            print(f"Parsed ({row}, {col}) from response")
-            return (row, col)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
-        print("Could not parse LLM response.")
-        pass
-
-    print("...into fallback territory...")
-
-    # Fallback: try to extract numbers from the response
-    import re
-    numbers = re.findall(r'\d+', response_text)
-    if len(numbers) >= 2:
-        row, col = int(numbers[0]), int(numbers[1])
-        if (row, col) in empty_cells:
-            print("Using some weirdly extracted numbers from the response as fallback")
-            return (row, col)
-
-    print(f"Last resort - using first empty cell I can find : ({empty_cells[0] if empty_cells else 'No moves left'})")
-
-    # Last resort: pick the first available cell
+    # Fallback: first available cell
+    print(f"LLM did not return a valid move, using first empty cell: {empty_cells[0]}")
     return empty_cells[0]
